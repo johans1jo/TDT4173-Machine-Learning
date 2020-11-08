@@ -1,4 +1,6 @@
 import os
+import matplotlib.pyplot as plt
+from PIL import Image
 import torch
 import torchvision
 from torchvision.transforms import ToTensor
@@ -8,12 +10,31 @@ import torch.optim as optim
 import numpy as np
 from tqdm import tqdm
 
+def torch_image_to_numpy(image: torch.Tensor):
+    """
+    Function to transform a pytorch tensor to numpy image
+    Args:
+        image: shape=[3, height, width]
+    Returns:
+        iamge: shape=[height, width, 3] in the range [0, 1]
+    """
+    # Normalize to [0 - 1.0]
+    image = image.detach().cpu() # Transform image to CPU memory (if on GPU VRAM)
+    image = image - image.min()
+    image = image / image.max()
+    image = image.numpy()
+    if len(image.shape) == 2: # Grayscale image, can just return
+        return image
+    assert image.shape[0] == 3, "Expected color channel to be on first axis. Got: {}".format(image.shape)
+    image = np.moveaxis(image, 0, 2)
+    return image
+
 #Function for training a model. Arguments:
 #model: A neural network of choise (alexnet and resnet18 in this example)
 #data_loaders: a formatted dataset
 #criterion: a loss function (CrossEntropyLoss)
 #optimizer: an optimizer (Adam)
-def train_model(model, data_loaders, criterion, optimizer, epochs=25):
+def train_model(model, data_loaders, criterion, optimizer, epochs=1):
     for epoch in tqdm(range(epochs)):
         #print('Epoch %d / %d' % (epoch, epochs-1))
         #First we train, then we evaluate
@@ -41,13 +62,12 @@ def train_model(model, data_loaders, criterion, optimizer, epochs=25):
                     if phase == 'train':
                         loss.backward()
                         optimizer.step()
-                
+
                 running_loss += loss.item() * inputs.size(0)
                 correct += torch.sum(prediction == labels.data)
             
             epoch_loss = running_loss / len(data_loaders[phase].dataset)
             epoch_accuracy = correct.double() / len(data_loaders[phase].dataset)
-
             #print('{} Loss: {:.4f} Accuracy: {:.4f}'.format(phase, epoch_loss, epoch_accuracy))
     print('{} Loss: {:.4f} Accuracy: {:.4f}'.format(phase, epoch_loss, epoch_accuracy))
 
@@ -84,6 +104,8 @@ if __name__ == '__main__':
     #Pretrained = True so their trained weigths are enabled
     model = torchvision.models.alexnet(pretrained=True)
 
+    print(model.eval())
+
     #Then we freeze the parameteres for feature extraction, because we wnat to use them
     for param in model.parameters():
         param.requires_grad = False
@@ -112,3 +134,31 @@ if __name__ == '__main__':
     #The dataset consist of two classes, ants and bees, with ca. 120 pictures of each for trainning 
     #and 75 each for evaluating our model.
     #Running 25 EPOCHS on my GTX 1070 takes 2 minutes and results in an accuracy of  87.6%
+
+    #Code for printing activations
+    image = Image.open("hymenoptera_data/train/ants/258217966_d9d90d18d3.jpg")
+
+    image_transform = torchvision.transforms.Compose([torchvision.transforms.Resize((224, 224)),
+                        torchvision.transforms.ToTensor(),
+                        torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
+
+    feature = model.features[0:1]
+
+    image =  image_transform(image)[None]
+    image = image.to(device)
+    activation = feature(image).cpu()
+
+    _, axs = plt.subplots(8, 8)
+
+    axs = axs.ravel()
+
+    for i in range(len(activation[0])):
+        im_f = torch_image_to_numpy(activation[0][i])*255
+        img = Image.fromarray(im_f.astype(np.uint8))
+        axs[i].imshow(img)
+    #plt.figure()
+    #im_f = torch_image_to_numpy(activation[0][3])*255
+    #img = Image.fromarray(im_f.astype(np.uint8))
+    #plt.imshow(img)
+    plt.savefig("test-conv2d.png")
+    #Compare "test-conv2d.png" to "test.jpg" 
