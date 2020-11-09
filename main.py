@@ -10,6 +10,7 @@ import torch.optim as optim
 import numpy as np
 from tqdm import tqdm
 
+#torch_image_to_numpy(image: torch.Tensor) is borrowed from hukkelas on github
 def torch_image_to_numpy(image: torch.Tensor):
     """
     Function to transform a pytorch tensor to numpy image
@@ -148,6 +149,7 @@ if __name__ == '__main__':
     image = image.to(device)
     activation = feature(image).cpu()
 
+    #Printing a bunch of layers:
     _, axs = plt.subplots(8, 8)
 
     axs = axs.ravel()
@@ -156,9 +158,12 @@ if __name__ == '__main__':
         im_f = torch_image_to_numpy(activation[0][i])*255
         img = Image.fromarray(im_f.astype(np.uint8))
         axs[i].imshow(img)
+    
+    #Printing one specific layer:
     #plt.figure()
     #im_f = torch_image_to_numpy(activation[0][3])*255
     #img = Image.fromarray(im_f.astype(np.uint8))
     #plt.imshow(img)
+    
     plt.savefig("test-conv2d.png")
     #Compare "test-conv2d.png" to "test.jpg" 
